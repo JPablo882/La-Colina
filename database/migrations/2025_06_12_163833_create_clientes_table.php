@@ -16,7 +16,7 @@ return new class extends Migration
 
             $table->string('nombre', 100);
             $table->string('ci', 20)->nullable(); // CI (Cédula de Identidad)
-            $table->string('celular', 15)->nullable();
+            $table->string('celular', 15)->unique();
             $table->string('referencia_celular', 15)->nullable(); // Celular alternativo
             $table->string('direccion', 200);
 

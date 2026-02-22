@@ -6,6 +6,7 @@ use App\Models\Cliente;
 use App\Models\Promocion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\Rule;
 
 class ClienteController extends Controller
 {
@@ -35,77 +36,107 @@ public function create()
         ->orderBy('precio_promo', 'asc') // 👈 la más barata
         ->first();
 
-    return view('admin.clientes.create', compact('promoVigente'));
+        $ultimoCliente = Cliente::orderBy('id', 'desc')->first();
+
+    return view('admin.clientes.create', compact('promoVigente', 'ultimoCliente'));
 }
 
     /* ============================
      * GUARDAR CLIENTE
      * ============================ */
     public function store(Request $request)
-    {
-        $request->validate([
-            'nombre'              => 'required|string|max:100',
-            'celular'             => 'required|string|max:15',
-            'referencia_celular'  => 'nullable|string|max:15',
-            'direccion'           => 'required|string|max:200',
-            'ubicacion_gps'       => 'nullable|string|max:500',
-            'latitud'             => 'nullable|numeric',
-            'longitud'            => 'nullable|numeric',
-        ]);
+{
+    /* ============================
+     * LIMPIAR TELÉFONOS
+     * ============================ */
+    $celularLimpio = preg_replace('/\D/', '', $request->celular);
+    $referenciaLimpio = $request->referencia_celular
+        ? preg_replace('/\D/', '', $request->referencia_celular)
+        : null;
 
-        /* ============================
-         * UBICACIÓN
-         * ============================ */
-        $lat = $request->latitud;
-        $lng = $request->longitud;
+    $request->merge([
+        'celular' => $celularLimpio,
+        'referencia_celular' => $referenciaLimpio
+    ]);
 
-        if ($request->ubicacion_gps && (!$lat || !$lng)) {
-            [$lat, $lng] = $this->extraerLatLng($request->ubicacion_gps);
-        }
+    /* ============================
+     * VALIDACIÓN SEGURA
+     * ============================ */
+    $request->validate([
+        'nombre' => 'required|string|max:100|unique:clientes,nombre',
 
-        /* ============================
-         * PROMO VIGENTE (AUTO)
-         * ============================ */
-        $promo = Promocion::where('activa', true)
-            ->where(function ($q) {
-                $q->whereNull('fecha_inicio')
-                  ->orWhere('fecha_inicio', '<=', now());
-            })
-            ->where(function ($q) {
-                $q->whereNull('fecha_fin')
-                  ->orWhere('fecha_fin', '>=', now());
-            })
-            ->orderBy('precio_promo', 'asc') // 👈 la más barata
-            ->first();
+        'celular' => [
+            'required',
+            'digits_between:10,15',
+            'unique:clientes,celular'
+        ],
 
-        /* ============================
-         * CREAR CLIENTE
-         * ============================ */
-        $cliente = new Cliente();
-        $cliente->nombre             = $request->nombre;
-       
-        $cliente->celular            = $request->celular;
-        $cliente->referencia_celular = $request->referencia_celular;
-        $cliente->direccion          = $request->direccion;
-        $cliente->ubicacion_gps      = $request->ubicacion_gps;
-        $cliente->latitud            = $lat;
-        $cliente->longitud           = $lng;
+        'referencia_celular' => [
+            'nullable',
+            'digits_between:10,15'
+        ],
 
-        // 🔥 aplicar promo si existe
-        if ($promo) {
-            $cliente->promo_activa = true;
-            $cliente->promo_desde  = $promo->fecha_inicio;
-            $cliente->promo_hasta  = $promo->fecha_fin;
-        } else {
-            $cliente->promo_activa = false;
-        }
+        'direccion'     => 'required|string|max:200',
+        'ubicacion_gps' => 'nullable|string|max:500',
+        'latitud'       => 'nullable|numeric',
+        'longitud'      => 'nullable|numeric',
+    ], [
+        'celular.digits_between' => 'El celular debe tener entre 10 y 15 dígitos e incluir código de país.',
+        'celular.unique' => 'Este número ya está registrado.',
+        'referencia_celular.digits_between' => 'La referencia debe incluir código de país (10–15 dígitos).'
+    ]);
 
-        $cliente->save();
+    /* ============================
+     * UBICACIÓN
+     * ============================ */
+    $lat = $request->latitud;
+    $lng = $request->longitud;
 
-        return redirect()->route('admin.clientes.index')
-            ->with('mensaje', 'Cliente creado correctamente')
-            ->with('icono', 'success');
+    if ($request->ubicacion_gps && (!$lat || !$lng)) {
+        [$lat, $lng] = $this->extraerLatLng($request->ubicacion_gps);
     }
+
+    /* ============================
+     * PROMO VIGENTE
+     * ============================ */
+    $promo = Promocion::where('activa', true)
+        ->where(function ($q) {
+            $q->whereNull('fecha_inicio')
+              ->orWhere('fecha_inicio', '<=', now());
+        })
+        ->where(function ($q) {
+            $q->whereNull('fecha_fin')
+              ->orWhere('fecha_fin', '>=', now());
+        })
+        ->orderBy('precio_promo', 'asc')
+        ->first();
+
+    /* ============================
+     * CREAR CLIENTE
+     * ============================ */
+    $cliente = new Cliente();
+    $cliente->nombre             = $request->nombre;
+    $cliente->celular            = $celularLimpio;
+    $cliente->referencia_celular = $referenciaLimpio;
+    $cliente->direccion          = $request->direccion;
+    $cliente->ubicacion_gps      = $request->ubicacion_gps;
+    $cliente->latitud            = $lat;
+    $cliente->longitud           = $lng;
+
+    if ($promo) {
+        $cliente->promo_activa = true;
+        $cliente->promo_desde  = $promo->fecha_inicio;
+        $cliente->promo_hasta  = $promo->fecha_fin;
+    } else {
+        $cliente->promo_activa = false;
+    }
+
+    $cliente->save();
+
+    return redirect()->route('admin.clientes.index')
+        ->with('mensaje', 'Cliente creado correctamente')
+        ->with('icono', 'success');
+}
 
     /* ============================
      * VER CLIENTE
@@ -129,41 +160,76 @@ public function create()
      * ACTUALIZAR
      * ============================ */
     public function update(Request $request, $id)
-    {
-        $request->validate([
-            'nombre'              => 'required|string|max:100',
-            'celular'             => 'required|string|max:15',
-            'referencia_celular'  => 'nullable|string|max:15',
-            'direccion'           => 'required|string|max:200',
-            'ubicacion_gps'       => 'nullable|string|max:500',
-            'latitud'             => 'nullable|numeric',
-            'longitud'            => 'nullable|numeric',
-        ]);
+{
+    $cliente = Cliente::findOrFail($id);
 
-        $cliente = Cliente::findOrFail($id);
-        
-        $cliente->promo_activa = $request->has('promo_activa') ? 1 : 0;
+    /* ============================
+     * LIMPIAR TELÉFONOS
+     * ============================ */
+    $celularLimpio = preg_replace('/\D/', '', $request->celular);
+    $referenciaLimpio = $request->referencia_celular
+        ? preg_replace('/\D/', '', $request->referencia_celular)
+        : null;
 
-        $lat = $request->latitud;
-        $lng = $request->longitud;
+    $request->merge([
+        'celular' => $celularLimpio,
+        'referencia_celular' => $referenciaLimpio
+    ]);
 
-        if ($request->ubicacion_gps && (!$lat || !$lng)) {
-            [$lat, $lng] = $this->extraerLatLng($request->ubicacion_gps);
-        }
+    /* ============================
+     * VALIDACIÓN SEGURA
+     * ============================ */
+    $request->validate([
+        'nombre' => [
+            'required',
+            'string',
+            'max:100',
+            Rule::unique('clientes')->ignore($cliente->id),
+        ],
 
-        $cliente->nombre             = $request->nombre;
-        $cliente->celular            = $request->celular;
-        $cliente->referencia_celular = $request->referencia_celular;
-        $cliente->direccion          = $request->direccion;
-        $cliente->ubicacion_gps      = $request->ubicacion_gps;
-        $cliente->latitud            = $lat;
-        $cliente->longitud           = $lng;
-        $cliente->save();
+        'celular' => [
+            'required',
+            'digits_between:10,15',
+            Rule::unique('clientes')->ignore($cliente->id),
+        ],
 
-        return redirect()->route('admin.clientes.index')
-            ->with('mensaje', 'Cliente actualizado correctamente')
-            ->with('icono', 'success');
+        'referencia_celular' => [
+            'nullable',
+            'digits_between:10,15'
+        ],
+
+        'direccion'     => 'required|string|max:200',
+        'ubicacion_gps' => 'nullable|string|max:500',
+        'latitud'       => 'nullable|numeric',
+        'longitud'      => 'nullable|numeric',
+    ]);
+
+    /* ============================
+     * UBICACIÓN
+     * ============================ */
+    $lat = $request->latitud;
+    $lng = $request->longitud;
+
+    if ($request->ubicacion_gps && (!$lat || !$lng)) {
+        [$lat, $lng] = $this->extraerLatLng($request->ubicacion_gps);
     }
+
+    $cliente->promo_activa = $request->has('promo_activa') ? 1 : 0;
+
+    $cliente->nombre             = $request->nombre;
+    $cliente->celular            = $celularLimpio;
+    $cliente->referencia_celular = $referenciaLimpio;
+    $cliente->direccion          = $request->direccion;
+    $cliente->ubicacion_gps      = $request->ubicacion_gps;
+    $cliente->latitud            = $lat;
+    $cliente->longitud           = $lng;
+
+    $cliente->save();
+
+    return redirect()->route('admin.clientes.index')
+        ->with('mensaje', 'Cliente actualizado correctamente')
+        ->with('icono', 'success');
+}
 
     /* ============================
      * ELIMINAR
@@ -219,4 +285,17 @@ public function create()
 
         return [$lat, $lng];
     }
+
+    public function validarCampo(Request $request)
+    {
+        $campo = $request->campo;
+        $valor = $request->valor;
+
+        $existe = \App\Models\Cliente::where($campo, $valor)->exists();
+
+        return response()->json([
+            'existe' => $existe
+        ]);
+    }
+
 }

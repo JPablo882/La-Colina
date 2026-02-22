@@ -148,6 +148,26 @@
                 <p><b>Observaciones:</b> {{ $pedido->observaciones }}</p>
 
 
+                {{-- 🟢 PRECIO REFERENCIA (dinámico por cliente) --}}
+                <div class="mt-2 p-2" style="background:#fff8e1; border-radius:6px;"
+                    data-precio-box
+                    data-cliente="{{ $pedido->cliente->id }}">
+
+                    <b>Precio referencia:</b>
+                    <div style="font-size:0.95rem; margin-top:4px;">
+                        <div>
+                            Agua normal (ID 1):
+                            <span class="precio-id-1 text-muted">Cargando...</span>
+                        </div>
+                        <div>
+                            Agua alcalina (ID 2):
+                            <span class="precio-id-2 text-muted">Cargando...</span>
+                        </div>
+                    </div>
+                </div>
+                {{-- 🟢 FIN PRECIO REFERENCIA --}}
+
+
                 {{-- 🔵 ÚLTIMA COMPRA (solo producto + cantidad) usando $ultimasCompras precargado --}}
                 @php
                     $ultimaCompra = $ultimasCompras[$pedido->cliente->id] ?? null;
@@ -172,7 +192,7 @@
 
 
                 @php
-                $msgLlegué = "Llegué a la ubicación: " . $pedido->cliente->nombre . ", " . $pedido->cliente->celular . ", " . "https://wa.me/591" . $pedido->cliente->celular . "?text=Hola,%20el%20distribuidor%20LLEGÓ%20a%20su%20ubicación.%20Por%20favor%20acérquese%20para%20recibir%20el%20pedido." ;                           
+                $msgLlegué = "Llegué a la ubicación: " . $pedido->cliente->nombre . ",   ". "+"  . $pedido->cliente->celular . ",  ". "https://wa.me/" . $pedido->cliente->celular . "?text=Hola,%20el%20distribuidor%20LLEGÓ%20a%20su%20ubicación.%20Por%20favor%20acérquese%20para%20recibir%20el%20pedido." ;                           
                 $msgLlegué = urlencode($msgLlegué);
                 @endphp
 
@@ -249,7 +269,7 @@
                     </p>
 
                     @if($pedido->detalles->count() > 0)
-                        <table class="table table-bordered mt-2">
+                        <table class="table table-sm table-bordered mt-2 tabla-entregados">
                             <thead>
                                 <tr>
                                     <th>Producto</th>
@@ -283,7 +303,7 @@
 
 {{-- MODAL FINALIZAR ENTREGA --}}
 <div class="modal fade" id="modalVenta" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST" action="{{ url('/admin/pedidos/motoquero/'.$motoquero->id.'/finalizar_pedido') }}">
                 @csrf
@@ -297,7 +317,7 @@
 
                 <div class="modal-body">
                     {{-- Tabla de productos --}}
-                    <table class="table table-bordered text-center" id="tablaProductos">
+                    <table class="table table-sm text-center tabla-finalizar" id="tablaProductos">
                         <thead class="thead-light">
                             <tr>
                                 <th>Producto</th>
@@ -361,6 +381,11 @@
 </div>
 
 
+
+<audio id="sound-ya-sale" src="{{ asset('sounds/ya_sale.mp3') }}"></audio>
+<audio id="sound-no-contesta" src="{{ asset('sounds/no_contesta.mp3') }}"></audio>
+
+
 @stop
 
 @section('css')
@@ -372,6 +397,57 @@
 .scroll-entregados::-webkit-scrollbar { width: 8px; }
 .scroll-entregados::-webkit-scrollbar-thumb { background-color: #28a745; border-radius: 10px; }
 .scroll-entregados::-webkit-scrollbar-track { background: #e9ecef; }
+</style>
+
+<style>
+.tabla-finalizar { font-size: 13px; table-layout: fixed; width: 100%;}
+.tabla-finalizar th,
+.tabla-finalizar td {padding: 5px 6px; vertical-align: middle;}
+/* Producto */
+.tabla-finalizar th:nth-child(1),
+.tabla-finalizar td:nth-child(1) {width: 28%;}
+/* Precio ref */
+.tabla-finalizar th:nth-child(2),
+.tabla-finalizar td:nth-child(2) {width: 14%;}
+/* Cantidad (más angosta) */
+.tabla-finalizar th:nth-child(3),
+.tabla-finalizar td:nth-child(3) {width: 12%;}
+/* Total (más ancho) */
+.tabla-finalizar th:nth-child(4),
+.tabla-finalizar td:nth-child(4) {width: 18%;white-space: nowrap;}
+/* Acción */
+.tabla-finalizar th:nth-child(5),
+.tabla-finalizar td:nth-child(5) {width: 12%;}
+/* Inputs más pequeños */
+.tabla-finalizar input,
+.tabla-finalizar select { height: 30px; font-size: 13px; padding: 3px 6px;}
+/* Evita que el modal se desborde en móvil */
+#modalVenta .modal-body {overflow-x: auto;}
+</style>
+<style>
+/* Contenedor scroll horizontal solo si es necesario */
+.scroll-entregados { overflow-x: auto;}
+/* Tabla más compacta */
+.tabla-entregados { font-size: 13px; table-layout: fixed; width: 100%;}
+.tabla-entregados th,
+.tabla-entregados td { padding: 4px 6px; vertical-align: middle;}
+/* Producto */
+.tabla-entregados th:nth-child(1),
+.tabla-entregados td:nth-child(1) { width: 35%;}
+/* Cantidad (MUCHO más angosta) */
+.tabla-entregados th:nth-child(2),
+.tabla-entregados td:nth-child(2) { width: 10%; text-align: center;}
+/* Precio Unitario */
+.tabla-entregados th:nth-child(3),
+.tabla-entregados td:nth-child(3) { width: 20%; text-align: right; white-space: nowrap;}
+/* Total */
+.tabla-entregados th:nth-child(4),
+.tabla-entregados td:nth-child(4) {width: 20%;text-align: right;white-space: nowrap;}
+/* En móvil reducir aún más */
+@media (max-width: 576px) {
+.tabla-entregados {font-size: 12px;}
+.tabla-entregados th,
+.tabla-entregados td {padding: 3px 4px;}}
 </style>
 @stop
 
@@ -989,6 +1065,157 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 
+<script>
 
+let sonidoActivo = null;
+let intervaloVibracion = null;
+
+function iniciarAlerta(tipo) {
+
+    // 🔊 Elegir sonido según tipo
+    if (tipo === 'ya_sale') {
+        sonidoActivo = document.getElementById('sound-ya-sale');
+    }
+
+    if (tipo === 'no_contesta') {
+        sonidoActivo = document.getElementById('sound-no-contesta');
+    }
+
+    // 🔊 SONIDO EN LOOP
+    if (sonidoActivo) {
+        sonidoActivo.currentTime = 0;
+        sonidoActivo.loop = true;
+        sonidoActivo.play().catch(() => {});
+    }
+
+    // 📳 VIBRACIÓN CONTINUA
+    if (navigator.vibrate) {
+        intervaloVibracion = setInterval(() => {
+            navigator.vibrate([500, 300, 500]);
+        }, 1200);
+    }
+}
+
+function detenerAlerta() {
+
+    // 🔇 Detener sonido
+    if (sonidoActivo) {
+        sonidoActivo.pause();
+        sonidoActivo.currentTime = 0;
+        sonidoActivo.loop = false;
+    }
+
+    // 📳 Detener vibración
+    if (intervaloVibracion) {
+        clearInterval(intervaloVibracion);
+        intervaloVibracion = null;
+    }
+
+    if (navigator.vibrate) {
+        navigator.vibrate(0);
+    }
+}
+
+function checkAvisos() {
+
+    fetch("{{ route('admin.motoquero.avisos') }}", {
+        headers: {
+            'Accept': 'application/json'
+        },
+        redirect: 'manual'
+    })
+    .then(res => {
+
+        if (res.status === 302) return null;
+        if (res.status === 204) return null;
+        if (res.status === 401) return null;
+        if (!res.ok) return null;
+
+        return res.json();
+    })
+    .then(data => {
+
+        if (!data || data.length === 0) return;
+
+        data.forEach(aviso => {
+
+            iniciarAlerta(aviso.tipo);
+
+            let titulo = '';
+            let color = '';
+            let mensaje = '';
+
+            if (aviso.tipo === 'ya_sale') {
+                titulo = '🚀 Cliente en salida';
+                color = '#28a745';
+                mensaje = '<span style="color:green;font-weight:bold;">EL CLIENTE YA SALE</span>';
+            }
+
+            if (aviso.tipo === 'no_contesta') {
+                titulo = '📞 Cliente no responde';
+                color = '#dc3545';
+                mensaje = '<span style="color:red;font-weight:bold;">NO CONTESTA – TOCAR PUERTA</span>';
+            }
+
+            Swal.fire({
+                icon: 'info',
+                title: titulo,
+                html: `
+                    <b>Pedido:</b> #${aviso.pedido_id}<br>
+                    <b>Cliente:</b> ${aviso.cliente}<br><br>
+                    ${mensaje}
+                `,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: color,
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            }).then(() => {
+                detenerAlerta();
+            });
+
+        });
+
+    })
+    .catch(() => {});
+}
+
+// ⏱ Polling cada 5 segundos
+setInterval(checkAvisos, 5000);
+
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    document.querySelectorAll('[data-precio-box]').forEach(box => {
+
+        const clienteId = box.dataset.cliente;
+
+        function obtenerPrecio(productoId, claseSpan) {
+
+            fetch(`/admin/pedidos/precio-cliente/${clienteId}/${productoId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.precio) {
+                        box.querySelector(claseSpan).innerText = data.precio + ' Bs';
+                    } else {
+                        box.querySelector(claseSpan).innerText = '—';
+                    }
+                })
+                .catch(() => {
+                    box.querySelector(claseSpan).innerText = '—';
+                });
+        }
+
+        // Producto ID 1 → Agua normal
+        obtenerPrecio(1, '.precio-id-1');
+
+        // Producto ID 2 → Agua alcalina
+        obtenerPrecio(2, '.precio-id-2');
+
+    });
+
+});
+</script>
 
 @stop

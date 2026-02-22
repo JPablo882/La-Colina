@@ -6,6 +6,7 @@ use App\Models\DetallePedido;
 use App\Models\Motoquero;
 use App\Models\Cliente;
 use App\Models\Tarifa;
+use App\Models\AvisoPedido;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -50,6 +51,11 @@ class Pedido extends Model
     {
         return $this->hasOne(MotoqueroUbicacion::class)
             ->latestOfMany('registrado_en');
+    }
+
+    public function avisos()
+    {
+        return $this->hasMany(AvisoPedido::class);
     }
 
 

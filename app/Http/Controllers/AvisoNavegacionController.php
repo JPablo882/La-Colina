@@ -35,9 +35,10 @@ class AvisoNavegacionController extends Controller
     // 1. POLL para el administrador
     public function poll()
     {
-        $aviso = AvisoNavegacion::where('estado', 'pendiente')
-                ->latest()
-                ->first();
+        $aviso = AvisoNavegacion::with('pedido.cliente')
+            ->where('estado', 'pendiente')
+            ->latest()
+            ->first();
 
         if (!$aviso) {
             return response()->json([]);
